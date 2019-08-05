@@ -1,23 +1,33 @@
-bool charging = true;
+#define CHARGE_PIN A0
+#define SENSE_PIN 0
+#define DISCHARGE_DONE_THRESHOLD 100
+#define DISCHARGE_DELTA_THRESHOLD 20
+#define SETTLE_LOOPS 100
+
+bool isCharging = true;
 int readValue = 0;
 int loopCount = 0;
 unsigned long dischargeStartMicros = 0;
 unsigned long dischargeMicros = 0;
 unsigned long baselineDischargeMicros = 0;
+unsigned long dischargeDelta = 0;
 
 void setup() {
-  pinMode(1, OUTPUT);
+  #ifdef DEBUG
+  Serial.begin(9600);
+  #endif
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void loop() {
   loopCount++;
-  if (charging) {
+  if (isCharging) {
 
-    pinMode(2, OUTPUT);
-    digitalWrite(2, HIGH);
+    pinMode(CHARGE_PIN, OUTPUT);
+    digitalWrite(CHARGE_PIN, HIGH);
  
-    charging = false;
-    pinMode(2, INPUT);
+    isCharging = false;
+    pinMode(CHARGE_PIN, INPUT);
 
     dischargeStartMicros = 0;
   } else {
@@ -26,22 +36,31 @@ void loop() {
       dischargeStartMicros = micros();
     }
  
-    readValue = analogRead(1);
+    readValue = analogRead(SENSE_PIN);
 
-    if (readValue < 100) {
+    if (readValue < DISCHARGE_DONE_THRESHOLD) {
+      isCharging = true;
       dischargeMicros = micros() - dischargeStartMicros;
-      charging = true;
+      dischargeDelta = abs(int(dischargeMicros) - int(baselineDischargeMicros));
 
-      if (baselineDischargeMicros == 0 && loopCount > 20000) {
+      #ifdef DEBUG
+      Serial.print(baselineDischargeMicros);
+      Serial.print("us baseline; ");
+
+      Serial.print(dischargeMicros);
+      Serial.print("us discharge; ");
+
+      Serial.print(dischargeDelta);
+      Serial.print("us delta\n");
+      #endif
+
+      if (baselineDischargeMicros == 0 && loopCount > SETTLE_LOOPS) {
         baselineDischargeMicros = dischargeMicros;
-      } else if (baselineDischargeMicros != 0 && abs(baselineDischargeMicros - dischargeMicros) > 5) {
-        digitalWrite(1, HIGH);
+      } else if (baselineDischargeMicros != 0 && dischargeDelta > DISCHARGE_DELTA_THRESHOLD) {
+        digitalWrite(LED_BUILTIN, HIGH);
       } else {
-        digitalWrite(1, LOW);
+        digitalWrite(LED_BUILTIN, LOW);
       }
     }
-
   }
-
-
 }
